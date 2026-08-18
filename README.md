@@ -1,7 +1,7 @@
 # Minimal X 油猴脚本
 
 [![安装脚本](https://img.shields.io/badge/-%E2%AC%87%20%E5%AE%89%E8%A3%85%20Minimal%20X-1da1f2?style=for-the-badge)](https://raw.githubusercontent.com/LiZhenNet/MinimalX/main/minimal-x.user.js)
-[![版本](https://img.shields.io/badge/version-1.1.1-brightgreen?style=for-the-badge)](https://github.com/LiZhenNet/MinimalX)
+[![版本](https://img.shields.io/badge/version-1.1.2-brightgreen?style=for-the-badge)](https://github.com/LiZhenNet/MinimalX)
 [![许可](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](./minimal-x.user.js)
 
 基于 [typefully/minimal-twitter](https://github.com/typefully/minimal-twitter)
@@ -32,7 +32,7 @@
 
 ## 功能
 
-- 时间线默认在左导航之外的可用区域居中，并在 `680–800px` 间响应式调整；也可设置 `600–1000px` 固定宽度。
+- 时间线默认在视口正中居中，左右留白等宽，并在 `600–800px` 间响应式调整；也可设置 `600–1000px` 固定宽度。
 - 移除推广帖子、关注建议和帖子浏览量。
 - 分别隐藏回复、转帖、点赞、关注与粉丝数量。
 - 隐藏右侧栏、消息抽屉、搜索框、发帖按钮和 Grok 抽屉。

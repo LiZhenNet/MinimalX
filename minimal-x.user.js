@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Minimal X / Twitter
 // @namespace    https://github.com/typefully/minimal-twitter
-// @version      1.1.1
+// @version      1.1.2
 // @description  精简 X/Twitter 界面，并提供时间线、导航和界面自定义选项。
 // @author       Minimal Twitter contributors; userscript adaptation
 // @license      MIT
@@ -309,19 +309,6 @@
     if (host) host.dataset.theme = getPageTheme();
   }
 
-  function syncLayoutMetrics() {
-    const leftSidebar = document.querySelector(selectors.leftSidebar);
-    if (!leftSidebar) return;
-
-    const railWidth = Math.ceil(leftSidebar.getBoundingClientRect().right);
-    if (railWidth > 0) {
-      document.documentElement.style.setProperty(
-        "--minimal-x-left-rail",
-        `${railWidth}px`,
-      );
-    }
-  }
-
   function ensureStyleElement() {
     let style = document.getElementById(STYLE_ID);
     if (!style) {
@@ -429,27 +416,21 @@
       settings.hideRightSidebar &&
       !isSearchRoute() &&
       !(routeIsHome && settings.showTrendsOnHome);
-    const centerInAvailableArea =
-      hideRightSidebar &&
-      !location.pathname.startsWith("/messages") &&
-      !location.pathname.startsWith("/explore");
     const preferredTimelineWidth = settings.autoTimelineWidth
-      ? "clamp(680px, 46vw, 800px)"
+      ? "clamp(600px, 44vw, 800px)"
       : `${settings.timelineWidth}px`;
-    const constrainedTimelineWidth = `min(${preferredTimelineWidth}, calc(100vw - var(--minimal-x-left-rail, 88px) - 48px))`;
+    const constrainedTimelineWidth = `min(${preferredTimelineWidth}, calc(100vw - 48px))`;
 
     return `
       /* Base layout adapted from Minimal Twitter 6.4.1. */
       @media only screen and (min-width: 1000px) {
         ${selectors.main} {
           align-items: center;
+          justify-content: center;
           overflow-x: clip;
           box-sizing: border-box;
-          ${
-            centerInAvailableArea
-              ? "padding-left: var(--minimal-x-left-rail, 88px);"
-              : ""
-          }
+          padding-left: 0 !important;
+          padding-right: 0 !important;
         }
         ${selectors.primaryColumn} {
           margin: 0 auto;
@@ -477,11 +458,6 @@
           position: fixed;
           right: 16px;
           bottom: 24px;
-        }
-      }
-      @media only screen and (min-width: 1000px) and (max-width: 1265px) {
-        body {
-          ${centerInAvailableArea ? "padding-left: 0;" : "padding-left: 88px;"}
         }
       }
       ${
@@ -875,7 +851,6 @@
     syncGrokDrawer();
     syncTitle();
     syncPanelTheme();
-    syncLayoutMetrics();
   }
 
   function scheduleDynamicUpdates() {
