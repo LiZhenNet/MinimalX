@@ -1,7 +1,7 @@
 # Minimal X 油猴脚本
 
 [![安装脚本](https://img.shields.io/badge/-%E2%AC%87%20%E5%AE%89%E8%A3%85%20Minimal%20X-1da1f2?style=for-the-badge)](https://raw.githubusercontent.com/LiZhenNet/MinimalX/main/minimal-x.user.js)
-[![版本](https://img.shields.io/badge/version-1.1.2-brightgreen?style=for-the-badge)](https://github.com/LiZhenNet/MinimalX)
+[![版本](https://img.shields.io/badge/version-1.1.3-brightgreen?style=for-the-badge)](https://github.com/LiZhenNet/MinimalX)
 [![许可](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](./minimal-x.user.js)
 
 基于 [typefully/minimal-twitter](https://github.com/typefully/minimal-twitter)

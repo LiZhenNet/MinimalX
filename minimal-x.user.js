@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Minimal X / Twitter
 // @namespace    https://github.com/typefully/minimal-twitter
-// @version      1.1.2
+// @version      1.1.3
 // @description  精简 X/Twitter 界面，并提供时间线、导航和界面自定义选项。
 // @author       Minimal Twitter contributors; userscript adaptation
 // @license      MIT
@@ -105,6 +105,8 @@
       notifications: true,
       messages: true,
       grok: true,
+      history: true,
+      creatorStudio: true,
       premium: false,
       lists: true,
       bookmarks: true,
@@ -142,6 +144,16 @@
       key: "grok",
       label: "Grok",
       selector: 'a[href*="/grok"][role="link"]',
+    },
+    {
+      key: "history",
+      label: "历史",
+      selector: 'a[href="/i/history"][role="link"]',
+    },
+    {
+      key: "creatorStudio",
+      label: "创作者工作室",
+      selector: 'a[href="/i/jf/creators/studio"][role="link"]',
     },
     {
       key: "premium",
