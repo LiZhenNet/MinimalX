@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Minimal X / Twitter
 // @namespace    https://github.com/typefully/minimal-twitter
-// @version      1.1.3
+// @version      1.1.4
 // @description  精简 X/Twitter 界面，并提供时间线、导航和界面自定义选项。
 // @author       Minimal Twitter contributors; userscript adaptation
 // @license      MIT
@@ -52,6 +52,9 @@
   const STYLE_ID = "minimal-x-userscript-style";
   const PANEL_HOST_ID = "minimal-x-settings-host";
   const ADDED_NAV_ATTRIBUTE = "data-minimal-x-added";
+  // X 的「更多」下拉浮层、卡片菜单等容器；侧栏规则不应作用到这些浮层内部。
+  const POPUP_MENU_SELECTOR = '[role="menu"], [data-testid="Dropdown"]';
+  const POPUP_MENU_SCOPE = '[role="menu"] *, [data-testid="Dropdown"] *';
 
   const selectors = {
     main: 'main[role="main"]',
@@ -336,13 +339,17 @@
       .filter((item) => !settings.navigation[item.key])
       .map(
         (item) =>
-          `${selectors.leftNavigation} ${item.selector} { display: none !important; }`,
+          `${selectors.leftNavigation} ${item.selector}:not(${POPUP_MENU_SCOPE}) { display: none !important; }`,
       )
       .join("\n");
   }
 
   function cssForNavigationLabels() {
-    const labels = `${selectors.leftNavigation} > * > div > div + div:last-child`;
+    // 只匹配导航栏自身的条目（nav 的直接子节点 a / button）。X 的「更多」
+    // 浮层菜单里也会渲染同名条目，若选择器匹配到浮层，点击「更多」后
+    // 菜单里的文字会一起被隐藏，导致样式错乱。
+    const labels = `${selectors.leftNavigation} > *:is(a, button) > div > div + div:last-child`;
+    const hoveredLabels = `${selectors.leftNavigation}:hover > *:is(a, button) > div > div + div:last-child`;
     const accountLabel = `${selectors.accountSwitcher} > div:not(:first-child)`;
 
     if (settings.navigationLabels === "never") {
@@ -362,7 +369,7 @@
           opacity: 0;
           transition: opacity 160ms ease;
         }
-        ${selectors.leftNavigation}:hover > * > div > div + div:last-child,
+        ${hoveredLabels},
         ${selectors.accountSwitcher}:hover > div:not(:first-child) {
           opacity: 1;
         }
@@ -461,6 +468,10 @@
         }
         ${selectors.leftSidebar} h1[role="heading"] {
           padding-top: 4px;
+        }
+        ${selectors.leftSidebar} > div > div > div {
+          /* 允许「更多」等侧栏浮层菜单溢出，避免被裁剪。 */
+          overflow: visible;
         }
         ${selectors.leftSidebar} > div > div > div > div:first-child {
           flex-shrink: 1;
@@ -789,6 +800,13 @@
     return node;
   }
 
+  function isInsidePopup(element) {
+    // X 把列表、书签、历史等入口渲染在「更多」浮层里。点击「更多」时这些
+    // 链接才出现在 DOM 中，如果不排除，脚本会误判为侧栏已有条目而删除自己
+    // 注入的导航项，侧栏随之跳动、浮层位置错位。
+    return Boolean(element.closest(POPUP_MENU_SELECTOR));
+  }
+
   function syncNavigationItems() {
     const navigation = document.querySelector(selectors.leftNavigation);
     const profileLink = document.querySelector(selectors.profileLink);
@@ -801,7 +819,11 @@
       const addedItems = Array.from(navigation.querySelectorAll(addedSelector));
       const nativeItem = Array.from(
         navigation.querySelectorAll(item.selector),
-      ).find((element) => !element.hasAttribute(ADDED_NAV_ATTRIBUTE));
+      ).find(
+        (element) =>
+          !element.hasAttribute(ADDED_NAV_ATTRIBUTE) &&
+          !isInsidePopup(element),
+      );
 
       if (!settings.enabled || !settings.navigation[item.key] || nativeItem) {
         addedItems.forEach((element) => element.remove());
