@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Minimal X / Twitter
 // @namespace    https://github.com/typefully/minimal-twitter
-// @version      1.1.5
+// @version      1.1.6
 // @description  精简 X/Twitter 界面，并提供时间线、导航和界面自定义选项。
 // @author       Minimal Twitter contributors; userscript adaptation
 // @license      MIT
@@ -52,7 +52,7 @@
   const STYLE_ID = "minimal-x-userscript-style";
   const PANEL_HOST_ID = "minimal-x-settings-host";
   const ADDED_NAV_ATTRIBUTE = "data-minimal-x-added";
-  const SETTINGS_SHORTCUT_ATTRIBUTE = "data-minimal-x-settings-shortcut";
+  const SETTINGS_SHORTCUT_ATTRIBUTE = "data-minimal-x-settings-item";
   const SETTINGS_SHORTCUT_LABEL = "Minimal X 设置";
   const SETTINGS_SHORTCUT_ICON =
     "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z";
@@ -60,6 +60,26 @@
   // X 的「更多」下拉浮层、卡片菜单等容器；侧栏规则不应作用到这些浮层内部。
   const POPUP_MENU_SELECTOR = '[role="menu"], [data-testid="Dropdown"]';
   const POPUP_MENU_SCOPE = '[role="menu"] *, [data-testid="Dropdown"] *';
+
+  // 侧栏「更多」点开后弹出的菜单（列表 / 社群 / 商业 / … / 设置和隐私）。
+  // X 用 role="menu"（部分版本再套一层 data-testid="Dropdown"）承载它，且账户
+  // 切换、帖子「…」等其它浮层也用同样的容器，所以候选容器要再用内容判定一次。
+  const MORE_MENU_LINK_SELECTOR = [
+    'a[href^="/settings"]',
+    'a[href^="/i/lists"]',
+    'a[href^="/i/communities"]',
+    'a[href^="/i/bookmarks"]',
+    'a[href^="/i/history"]',
+    'a[href^="/jobs"]',
+    'a[href^="/compose/articles"]',
+    'a[href*="verified-orgs"]',
+  ].join(", ");
+  const MORE_MENU_TEXT_MARKERS = [
+    "设置和隐私",
+    "Settings and privacy",
+    "创建你的空间",
+    "Create your Space",
+  ];
 
   const selectors = {
     main: 'main[role="main"]',
@@ -779,7 +799,13 @@
     const textNodes = Array.from(node.querySelectorAll("span")).filter(
       (span) => span.children.length === 0 && span.textContent.trim(),
     );
-    const target = textNodes.at(-1);
+    // 菜单项的文字未必要包在 <span> 里，退化为「最后一个有文字的叶子节点」。
+    const lastTextNode = Array.from(node.querySelectorAll("*"))
+      .filter(
+        (element) => element.children.length === 0 && element.textContent.trim(),
+      )
+      .at(-1);
+    const target = textNodes.at(-1) || lastTextNode;
     if (target) target.textContent = label;
   }
 
@@ -806,18 +832,68 @@
     return node;
   }
 
-  function createSettingsShortcut(profileLink) {
-    const node = profileLink.cloneNode(true);
-    node.removeAttribute("href");
-    node.removeAttribute("data-testid");
-    node.removeAttribute("aria-current");
-    node.querySelectorAll("[aria-current]").forEach((element) => {
-      element.removeAttribute("aria-current");
+  function getPopupMenuCandidates() {
+    const candidates = Array.from(
+      document.querySelectorAll(POPUP_MENU_SELECTOR),
+    );
+    // 容器可能互相嵌套（Dropdown > role="menu"），只保留最内层，避免重复注入。
+    return candidates.filter(
+      (menu) =>
+        !candidates.some((other) => other !== menu && menu.contains(other)),
+    );
+  }
+
+  function isMoreFlyoutMenu(menu) {
+    if (menu.querySelector(MORE_MENU_LINK_SELECTOR)) return true;
+    const text = menu.textContent || "";
+    return MORE_MENU_TEXT_MARKERS.some((marker) => text.includes(marker));
+  }
+
+  function getMenuRows(menu) {
+    const rows = [];
+    menu.querySelectorAll('a[href], [role="menuitem"]').forEach((element) => {
+      if (element.closest(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`)) return;
+
+      // 一条菜单项可能是 <a role="menuitem">，也可能是 <div role="menuitem">
+      // 包着 <a>；向上取最外层的那个，克隆它才能保持原生结构与样式。
+      let outermost = element;
+      for (let node = element; node && node !== menu; node = node.parentElement) {
+        if (node.matches('a[href], [role="menuitem"]')) outermost = node;
+      }
+      if (!rows.includes(outermost)) rows.push(outermost);
     });
+    if (rows.length) return rows;
+
+    // 兜底：若该版本 X 的菜单项既不是链接也没有 role="menuitem"，就按
+    // 「容器里带图标 + 文字的行」识别。
+    const container =
+      menu.children.length === 1 && menu.firstElementChild.children.length
+        ? menu.firstElementChild
+        : menu;
+    return Array.from(container.children).filter(
+      (element) =>
+        !element.closest(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`) &&
+        element.querySelector("svg") &&
+        (element.textContent || "").trim(),
+    );
+  }
+
+  function createSettingsMenuItem(template) {
+    const node = template.cloneNode(true);
+    const scrub = (element) => {
+      ["href", "target", "rel", "data-testid", "aria-current"].forEach((name) =>
+        element.removeAttribute(name),
+      );
+    };
+    scrub(node);
+    node
+      .querySelectorAll("[href], [target], [rel], [data-testid], [aria-current]")
+      .forEach(scrub);
+
     node.setAttribute(SETTINGS_SHORTCUT_ATTRIBUTE, "");
+    node.setAttribute("role", "menuitem");
+    node.setAttribute("tabindex", "-1");
     node.setAttribute("aria-label", SETTINGS_SHORTCUT_LABEL);
-    node.setAttribute("role", "button");
-    node.setAttribute("tabindex", "0");
     node.style.cursor = "pointer";
 
     const svg = node.querySelector("svg");
@@ -830,31 +906,33 @@
   }
 
   function syncSettingsShortcut() {
-    const navigation = document.querySelector(selectors.leftNavigation);
-    if (!navigation) return;
-
-    const existing = Array.from(
+    const injected = Array.from(
       document.querySelectorAll(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`),
     );
-    existing.slice(1).forEach((element) => element.remove());
+    const menus = settings.enabled
+      ? getPopupMenuCandidates().filter(isMoreFlyoutMenu)
+      : [];
 
-    if (!settings.enabled) {
-      existing.forEach((element) => element.remove());
-      return;
-    }
-    if (existing.length) return;
+    // 菜单关闭时整棵浮层会从 DOM 消失；这里兜底清掉脱离菜单的残留节点。
+    injected.forEach((element) => {
+      if (!menus.some((menu) => menu.contains(element))) element.remove();
+    });
 
-    const profileLink = navigation.querySelector(selectors.profileLink);
-    if (!profileLink) return;
+    if (!settings.enabled) return;
 
-    const anchor =
-      navigation.querySelector(selectors.moreButton) ||
-      navigation.querySelector('[aria-haspopup="menu"]') ||
-      profileLink;
-    anchor.insertAdjacentElement(
-      "afterend",
-      createSettingsShortcut(profileLink),
-    );
+    menus.forEach((menu) => {
+      const existing = Array.from(
+        menu.querySelectorAll(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`),
+      );
+      if (existing.length > 1) {
+        existing.slice(1).forEach((element) => element.remove());
+      }
+      if (existing.length) return;
+
+      const template = getMenuRows(menu).at(-1);
+      if (!template) return;
+      template.insertAdjacentElement("afterend", createSettingsMenuItem(template));
+    });
   }
 
   function isInsidePopup(element) {
