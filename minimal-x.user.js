@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Minimal X / Twitter
 // @namespace    https://github.com/typefully/minimal-twitter
-// @version      1.1.4
+// @version      1.1.5
 // @description  精简 X/Twitter 界面，并提供时间线、导航和界面自定义选项。
 // @author       Minimal Twitter contributors; userscript adaptation
 // @license      MIT
@@ -52,6 +52,11 @@
   const STYLE_ID = "minimal-x-userscript-style";
   const PANEL_HOST_ID = "minimal-x-settings-host";
   const ADDED_NAV_ATTRIBUTE = "data-minimal-x-added";
+  const SETTINGS_SHORTCUT_ATTRIBUTE = "data-minimal-x-settings-shortcut";
+  const SETTINGS_SHORTCUT_LABEL = "Minimal X 设置";
+  const SETTINGS_SHORTCUT_ICON =
+    "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z";
+
   // X 的「更多」下拉浮层、卡片菜单等容器；侧栏规则不应作用到这些浮层内部。
   const POPUP_MENU_SELECTOR = '[role="menu"], [data-testid="Dropdown"]';
   const POPUP_MENU_SCOPE = '[role="menu"] *, [data-testid="Dropdown"] *';
@@ -63,6 +68,7 @@
     leftNavigation: 'header[role="banner"] nav[role="navigation"]',
     rightSidebar: '[data-testid="sidebarColumn"]',
     profileLink: 'header[role="banner"] [data-testid="AppTabBar_Profile_Link"]',
+    moreButton: 'header[role="banner"] [data-testid="AppTabBar_More_Menu"]',
     accountSwitcher: '[data-testid="SideNav_AccountSwitcher_Button"]',
     tweetButton: '[data-testid="SideNav_NewTweet_Button"]',
     searchForm: '[data-testid="sidebarColumn"] form[role="search"]',
@@ -800,6 +806,57 @@
     return node;
   }
 
+  function createSettingsShortcut(profileLink) {
+    const node = profileLink.cloneNode(true);
+    node.removeAttribute("href");
+    node.removeAttribute("data-testid");
+    node.removeAttribute("aria-current");
+    node.querySelectorAll("[aria-current]").forEach((element) => {
+      element.removeAttribute("aria-current");
+    });
+    node.setAttribute(SETTINGS_SHORTCUT_ATTRIBUTE, "");
+    node.setAttribute("aria-label", SETTINGS_SHORTCUT_LABEL);
+    node.setAttribute("role", "button");
+    node.setAttribute("tabindex", "0");
+    node.style.cursor = "pointer";
+
+    const svg = node.querySelector("svg");
+    if (svg) {
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.innerHTML = `<path d="${SETTINGS_SHORTCUT_ICON}"></path>`;
+    }
+    updateClonedNavigationLabel(node, SETTINGS_SHORTCUT_LABEL);
+    return node;
+  }
+
+  function syncSettingsShortcut() {
+    const navigation = document.querySelector(selectors.leftNavigation);
+    if (!navigation) return;
+
+    const existing = Array.from(
+      document.querySelectorAll(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`),
+    );
+    existing.slice(1).forEach((element) => element.remove());
+
+    if (!settings.enabled) {
+      existing.forEach((element) => element.remove());
+      return;
+    }
+    if (existing.length) return;
+
+    const profileLink = navigation.querySelector(selectors.profileLink);
+    if (!profileLink) return;
+
+    const anchor =
+      navigation.querySelector(selectors.moreButton) ||
+      navigation.querySelector('[aria-haspopup="menu"]') ||
+      profileLink;
+    anchor.insertAdjacentElement(
+      "afterend",
+      createSettingsShortcut(profileLink),
+    );
+  }
+
   function isInsidePopup(element) {
     // X 把列表、书签、历史等入口渲染在「更多」浮层里。点击「更多」时这些
     // 链接才出现在 DOM 中，如果不排除，脚本会误判为侧栏已有条目而删除自己
@@ -876,12 +933,15 @@
 
     if (!settings.enabled) {
       document
-        .querySelectorAll(`[${ADDED_NAV_ATTRIBUTE}]`)
+        .querySelectorAll(
+          `[${ADDED_NAV_ATTRIBUTE}], [${SETTINGS_SHORTCUT_ATTRIBUTE}]`,
+        )
         .forEach((element) => element.remove());
       return;
     }
 
     syncNavigationItems();
+    syncSettingsShortcut();
     syncGrokDrawer();
     syncTitle();
     syncPanelTheme();
@@ -1601,6 +1661,15 @@
   }
 
   function handleKeydown(event) {
+    if (
+      (event.key === "Enter" || event.key === " ") &&
+      event.target?.closest?.(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`)
+    ) {
+      event.preventDefault();
+      openSettingsPanel();
+      return;
+    }
+
     if (event.key !== "Escape") return;
 
     if (document.getElementById(PANEL_HOST_ID)) {
@@ -1616,6 +1685,14 @@
   }
 
   function handleDocumentClick(event) {
+    const shortcut = event.target.closest?.(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`);
+    if (shortcut) {
+      event.preventDefault();
+      event.stopPropagation();
+      openSettingsPanel();
+      return;
+    }
+
     if (!settings.enabled || !settings.hideGrokDrawer) return;
     const button = event.target.closest("button");
     if (!button) return;

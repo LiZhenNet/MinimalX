@@ -1,7 +1,7 @@
 # Minimal X 油猴脚本
 
 [![安装脚本](https://img.shields.io/badge/-%E2%AC%87%20%E5%AE%89%E8%A3%85%20Minimal%20X-1da1f2?style=for-the-badge)](https://raw.githubusercontent.com/LiZhenNet/MinimalX/main/minimal-x.user.js)
-[![版本](https://img.shields.io/badge/version-1.1.4-brightgreen?style=for-the-badge)](https://github.com/LiZhenNet/MinimalX)
+[![版本](https://img.shields.io/badge/version-1.1.5-brightgreen?style=for-the-badge)](https://github.com/LiZhenNet/MinimalX)
 [![许可](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](./minimal-x.user.js)
 
 基于 [typefully/minimal-twitter](https://github.com/typefully/minimal-twitter)
@@ -36,7 +36,7 @@
 - 移除推广帖子、关注建议和帖子浏览量。
 - 分别隐藏回复、转帖、点赞、关注与粉丝数量。
 - 隐藏右侧栏、消息抽屉、搜索框、发帖按钮和 Grok 抽屉。
-- 自定义左侧导航项目、文字标签、未读数量和垂直位置。
+- 自定义左侧导航项目、文字标签、未读数量和垂直位置；侧栏「更多」下方提供 Minimal X 设置入口。
 - 自动补充 X 当前未直接展示的列表、社群、话题等导航入口。
 - 支持 Zen 写作模式、Inter 字体和自定义 CSS。
 - 设置面板和趋势浮层跟随 X 的浅色、Dim 与黑色主题。
