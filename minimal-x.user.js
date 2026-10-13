@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Minimal X / Twitter
 // @namespace    https://github.com/typefully/minimal-twitter
-// @version      1.1.6
+// @version      1.1.7
 // @description  精简 X/Twitter 界面，并提供时间线、导航和界面自定义选项。
 // @author       Minimal Twitter contributors; userscript adaptation
 // @license      MIT
@@ -905,6 +905,57 @@
     return node;
   }
 
+  function getMenuItemPlacements(menu, rows) {
+    // 从最后一行往上走，每一层都可以「插在通往这一行的那个子节点之后」。
+    // X 的菜单行外面往往还裹着一层横向 flex 的行包装器（用来放 hover 层），
+    // 直接插在 <a> 之后就会横向挤在「设置和隐私」右边并撑破菜单宽度，
+    // 所以必须能上升到「与其它行同级」的那一层。
+    const last = rows.at(-1);
+    const chain = [];
+    for (let node = last; node && node.parentElement; node = node.parentElement) {
+      chain.push({ container: node.parentElement, before: node.nextSibling });
+      if (node.parentElement === menu) break;
+    }
+
+    // 结构上最合理的是「同一层里还有别的行」的那一层；测不到布局时就用它。
+    const shared = chain.find((placement) =>
+      rows.some((row) => row !== last && placement.container.contains(row)),
+    );
+    return shared
+      ? [shared, ...chain.filter((placement) => placement !== shared)]
+      : chain;
+  }
+
+  function menuItemIsOnOwnRow(node, rows) {
+    const lastRect = rows.at(-1)?.getBoundingClientRect?.();
+    const rect = node.getBoundingClientRect?.();
+    if (!rect?.height || !lastRect?.height) return true; // 拿不到布局就不判断
+    return rect.top >= lastRect.bottom - 4;
+  }
+
+  function placeSettingsMenuItem(menu, rows, node) {
+    const placements = getMenuItemPlacements(menu, rows);
+    if (!placements.length) {
+      menu.appendChild(node);
+      return;
+    }
+
+    let chosen = placements[0];
+    let settled = false;
+    placements.some((placement) => {
+      placement.container.insertBefore(node, placement.before || null);
+      if (!menuItemIsOnOwnRow(node, rows)) return false;
+      chosen = placement;
+      settled = true;
+      return true;
+    });
+
+    // 所有候选位置都没能落在独立一行时，回到结构上最合理的那层。
+    if (!settled && node.parentElement !== chosen.container) {
+      chosen.container.insertBefore(node, chosen.before || null);
+    }
+  }
+
   function syncSettingsShortcut() {
     const injected = Array.from(
       document.querySelectorAll(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`),
@@ -929,9 +980,10 @@
       }
       if (existing.length) return;
 
-      const template = getMenuRows(menu).at(-1);
+      const rows = getMenuRows(menu);
+      const template = rows.at(-1);
       if (!template) return;
-      template.insertAdjacentElement("afterend", createSettingsMenuItem(template));
+      placeSettingsMenuItem(menu, rows, createSettingsMenuItem(template));
     });
   }
 
