@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Minimal X / Twitter
 // @namespace    https://github.com/typefully/minimal-twitter
-// @version      1.1.7
+// @version      1.1.8
 // @description  精简 X/Twitter 界面，并提供时间线、导航和界面自定义选项。
 // @author       Minimal Twitter contributors; userscript adaptation
 // @license      MIT
@@ -926,13 +926,6 @@
       : chain;
   }
 
-  function menuItemIsOnOwnRow(node, rows) {
-    const lastRect = rows.at(-1)?.getBoundingClientRect?.();
-    const rect = node.getBoundingClientRect?.();
-    if (!rect?.height || !lastRect?.height) return true; // 拿不到布局就不判断
-    return rect.top >= lastRect.bottom - 4;
-  }
-
   function placeSettingsMenuItem(menu, rows, node) {
     const placements = getMenuItemPlacements(menu, rows);
     if (!placements.length) {
@@ -940,20 +933,13 @@
       return;
     }
 
-    let chosen = placements[0];
-    let settled = false;
-    placements.some((placement) => {
-      placement.container.insertBefore(node, placement.before || null);
-      if (!menuItemIsOnOwnRow(node, rows)) return false;
-      chosen = placement;
-      settled = true;
-      return true;
-    });
-
-    // 所有候选位置都没能落在独立一行时，回到结构上最合理的那层。
-    if (!settled && node.parentElement !== chosen.container) {
-      chosen.container.insertBefore(node, chosen.before || null);
-    }
+    // 结构上最合理的是「同一层里还有别的行」的那一层；直接用它，避免插入后
+    // 读取布局导致的闪动。
+    const shared = placements.find((placement) =>
+      rows.some((row) => row !== rows.at(-1) && placement.container.contains(row)),
+    );
+    const chosen = shared || placements[0];
+    chosen.container.insertBefore(node, chosen.before || null);
   }
 
   function syncSettingsShortcut() {
