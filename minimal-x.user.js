@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Minimal X / Twitter
 // @namespace    https://github.com/typefully/minimal-twitter
-// @version      1.1.8
+// @version      1.1.9
 // @description  精简 X/Twitter 界面，并提供时间线、导航和界面自定义选项。
 // @author       Minimal Twitter contributors; userscript adaptation
 // @license      MIT
@@ -80,6 +80,7 @@
     "创建你的空间",
     "Create your Space",
   ];
+  const SETTINGS_ITEM_SELECTOR = `[${SETTINGS_SHORTCUT_ATTRIBUTE}]`;
 
   const selectors = {
     main: 'main[role="main"]',
@@ -852,7 +853,7 @@
   function getMenuRows(menu) {
     const rows = [];
     menu.querySelectorAll('a[href], [role="menuitem"]').forEach((element) => {
-      if (element.closest(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`)) return;
+      if (element.closest(SETTINGS_ITEM_SELECTOR)) return;
 
       // 一条菜单项可能是 <a role="menuitem">，也可能是 <div role="menuitem">
       // 包着 <a>；向上取最外层的那个，克隆它才能保持原生结构与样式。
@@ -872,7 +873,7 @@
         : menu;
     return Array.from(container.children).filter(
       (element) =>
-        !element.closest(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`) &&
+        !element.closest(SETTINGS_ITEM_SELECTOR) &&
         element.querySelector("svg") &&
         (element.textContent || "").trim(),
     );
@@ -944,7 +945,7 @@
 
   function syncSettingsShortcut() {
     const injected = Array.from(
-      document.querySelectorAll(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`),
+      document.querySelectorAll(SETTINGS_ITEM_SELECTOR),
     );
     const menus = settings.enabled
       ? getPopupMenuCandidates().filter(isMoreFlyoutMenu)
@@ -959,7 +960,7 @@
 
     menus.forEach((menu) => {
       const existing = Array.from(
-        menu.querySelectorAll(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`),
+        menu.querySelectorAll(SETTINGS_ITEM_SELECTOR),
       );
       if (existing.length > 1) {
         existing.slice(1).forEach((element) => element.remove());
@@ -1050,7 +1051,7 @@
     if (!settings.enabled) {
       document
         .querySelectorAll(
-          `[${ADDED_NAV_ATTRIBUTE}], [${SETTINGS_SHORTCUT_ATTRIBUTE}]`,
+          `[${ADDED_NAV_ATTRIBUTE}], ${SETTINGS_ITEM_SELECTOR}`,
         )
         .forEach((element) => element.remove());
       return;
@@ -1061,6 +1062,34 @@
     syncGrokDrawer();
     syncTitle();
     syncPanelTheme();
+  }
+
+  function mutationsTouchPopupMenu(records) {
+    return records.some((record) => {
+      const target = record.target;
+      if (target?.nodeType === 1 && target.closest?.(POPUP_MENU_SELECTOR)) {
+        return true;
+      }
+      return Array.from(record.addedNodes || []).some(
+        (node) =>
+          node.nodeType === 1 &&
+          (node.matches?.(POPUP_MENU_SELECTOR) ||
+            node.querySelector?.(POPUP_MENU_SELECTOR)),
+      );
+    });
+  }
+
+  function injectSettingsShortcutBeforePaint(records) {
+    // 这里是「不闪」的关键：X 的浮层菜单随点随渲染，但 MutationObserver 的
+    // 回调跑在微任务里、早于同一帧的绘制。菜单节点一出现就同步补上条目，
+    // 浏览器画出的第一帧菜单已经带着 Minimal X 设置——而 80ms 的防抖会晚
+    // 好几帧，用户就会看到菜单先弹出来、再闪出一行。
+    if (!settings.enabled || !mutationsTouchPopupMenu(records)) return;
+    try {
+      syncSettingsShortcut();
+    } catch (error) {
+      console.warn("[Minimal X] 注入「更多」菜单条目失败。", error);
+    }
   }
 
   function scheduleDynamicUpdates() {
@@ -1779,7 +1808,7 @@
   function handleKeydown(event) {
     if (
       (event.key === "Enter" || event.key === " ") &&
-      event.target?.closest?.(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`)
+      event.target?.closest?.(SETTINGS_ITEM_SELECTOR)
     ) {
       event.preventDefault();
       openSettingsPanel();
@@ -1801,7 +1830,7 @@
   }
 
   function handleDocumentClick(event) {
-    const shortcut = event.target.closest?.(`[${SETTINGS_SHORTCUT_ATTRIBUTE}]`);
+    const shortcut = event.target.closest?.(SETTINGS_ITEM_SELECTOR);
     if (shortcut) {
       event.preventDefault();
       event.stopPropagation();
@@ -1829,7 +1858,10 @@
     applyStyles();
     runDynamicUpdates();
 
-    observer = new MutationObserver(scheduleDynamicUpdates);
+    observer = new MutationObserver((records) => {
+      injectSettingsShortcutBeforePaint(records);
+      scheduleDynamicUpdates();
+    });
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["data-theme"],
